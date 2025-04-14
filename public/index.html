@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multiplayer FPS Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container"></div>
+  
+  <!-- Load libraries -->
+  <script src="/socket.io/socket.io.js"></script>
+  
+  <!-- Import Three.js using ES modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/"
+      }
+    }
+  </script>
+  
+  <!-- Load game scripts as modules -->
+  <script type="module" src="game/network.js"></script>
+  <script type="module" src="game/main.js"></script>
+  <script type="module" src="client.js"></script>
+</body>
+</html>

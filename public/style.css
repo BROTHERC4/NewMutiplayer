@@ -1,0 +1,30 @@
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #000000;
+}
+
+#game-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.instructions {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 20px;
+  border-radius: 5px;
+  text-align: center;
+  font-family: Arial, sans-serif;
+  user-select: none;
+}
+
+.instructions.hidden {
+  display: none;
+}
