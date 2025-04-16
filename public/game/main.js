@@ -19,6 +19,10 @@ export class Game {
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
     this.prevTime = performance.now();
+    this.lastFrameTime = null;
+    
+    // Check if we're on a mobile device
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     // Initialize
     this.init();
@@ -48,11 +52,28 @@ export class Game {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     document.getElementById('game-container').appendChild(this.renderer.domElement);
     
-    // Add pointer lock controls
-    this.controls = new PointerLockControls(this.camera, document.body);
-    
-    // Create instruction screen
-    this.createInstructions();
+    if (this.isMobile) {
+      // For mobile, use a simpler control system
+      this.camera.rotation.order = 'YXZ'; // Important for preventing gimbal lock
+      this.controls = { 
+        isLocked: true,
+        moveForward: (distance) => {
+          this.camera.position.z -= Math.cos(this.camera.rotation.y) * distance;
+          this.camera.position.x -= Math.sin(this.camera.rotation.y) * distance;
+        },
+        moveRight: (distance) => {
+          this.camera.position.z += Math.sin(this.camera.rotation.y) * distance;
+          this.camera.position.x -= Math.cos(this.camera.rotation.y) * distance;
+        }
+      };
+      
+      // Skip the instruction screen for mobile
+      this.createMobileInstructions();
+    } else {
+      // Desktop controls
+      this.controls = new PointerLockControls(this.camera, document.body);
+      this.createInstructions();
+    }
     
     // Add a floor
     const floorGeometry = new THREE.PlaneGeometry(20, 20, 10, 10);
@@ -98,6 +119,23 @@ export class Game {
     
     this.controls.addEventListener('unlock', () => {
       this.instructions.classList.remove('hidden');
+    });
+  }
+  
+  createMobileInstructions() {
+    this.instructions = document.createElement('div');
+    this.instructions.className = 'instructions';
+    this.instructions.innerHTML = `
+      <h2>Multiplayer FPS Game</h2>
+      <p>Touch the left side of the screen to move</p>
+      <p>Touch the right side to look around</p>
+      <p>Tap to start</p>
+    `;
+    document.body.appendChild(this.instructions);
+    
+    // Tap to start game
+    this.instructions.addEventListener('click', () => {
+      this.instructions.classList.add('hidden');
     });
   }
   
@@ -197,6 +235,113 @@ export class Game {
     });
   }
   
+  setupTouchControls() {
+    if (!this.isMobile) return;
+    
+    // Create touch controls container
+    const touchControls = document.createElement('div');
+    touchControls.className = 'touch-controls';
+    document.body.appendChild(touchControls);
+    
+    // Create left joystick for movement
+    const leftJoystick = document.createElement('div');
+    leftJoystick.className = 'joystick left-joystick';
+    touchControls.appendChild(leftJoystick);
+    
+    // Create right joystick for looking around
+    const rightJoystick = document.createElement('div');
+    rightJoystick.className = 'joystick right-joystick';
+    touchControls.appendChild(rightJoystick);
+    
+    // Add touch event handlers
+    let leftActive = false;
+    let rightActive = false;
+    let leftOrigin = { x: 0, y: 0 };
+    let rightOrigin = { x: 0, y: 0 };
+    let leftPosition = { x: 0, y: 0 };
+    let rightPosition = { x: 0, y: 0 };
+    
+    // Handle touch start
+    document.addEventListener('touchstart', (event) => {
+      for (let i = 0; i < event.touches.length; i++) {
+        const touch = event.touches[i];
+        if (touch.clientX < window.innerWidth / 2) {
+          // Left side - movement
+          leftActive = true;
+          leftOrigin.x = touch.clientX;
+          leftOrigin.y = touch.clientY;
+          leftJoystick.style.left = `${touch.clientX}px`;
+          leftJoystick.style.top = `${touch.clientY}px`;
+          leftJoystick.classList.add('active');
+        } else {
+          // Right side - looking
+          rightActive = true;
+          rightOrigin.x = touch.clientX;
+          rightOrigin.y = touch.clientY;
+          rightJoystick.style.left = `${touch.clientX}px`;
+          rightJoystick.style.top = `${touch.clientY}px`;
+          rightJoystick.classList.add('active');
+        }
+      }
+    });
+    
+    // Handle touch move
+    document.addEventListener('touchmove', (event) => {
+      event.preventDefault();
+      for (let i = 0; i < event.touches.length; i++) {
+        const touch = event.touches[i];
+        if (touch.clientX < window.innerWidth / 2 && leftActive) {
+          // Left side - movement
+          leftPosition.x = touch.clientX - leftOrigin.x;
+          leftPosition.y = touch.clientY - leftOrigin.y;
+          
+          // Normalize and apply to movement
+          const length = Math.sqrt(leftPosition.x * leftPosition.x + leftPosition.y * leftPosition.y);
+          if (length > 50) {
+            leftPosition.x = (leftPosition.x / length) * 50;
+            leftPosition.y = (leftPosition.y / length) * 50;
+          }
+          
+          // Update movement flags
+          this.moveForward = leftPosition.y < -10;
+          this.moveBackward = leftPosition.y > 10;
+          this.moveLeft = leftPosition.x < -10;
+          this.moveRight = leftPosition.x > 10;
+        } else if (touch.clientX >= window.innerWidth / 2 && rightActive) {
+          // Right side - looking
+          rightPosition.x = touch.clientX - rightOrigin.x;
+          rightPosition.y = touch.clientY - rightOrigin.y;
+          
+          // Apply to camera rotation - sensitivity can be adjusted
+          if (Math.abs(rightPosition.x) > 5) {
+            this.camera.rotation.y -= rightPosition.x * 0.01;
+          }
+        }
+      }
+    });
+    
+    // Handle touch end
+    document.addEventListener('touchend', (event) => {
+      // Check if all touches have ended
+      const noLeftTouch = Array.from(event.touches).every(touch => touch.clientX >= window.innerWidth / 2);
+      const noRightTouch = Array.from(event.touches).every(touch => touch.clientX < window.innerWidth / 2);
+      
+      if (noLeftTouch && leftActive) {
+        leftActive = false;
+        this.moveForward = false;
+        this.moveBackward = false;
+        this.moveLeft = false;
+        this.moveRight = false;
+        leftJoystick.classList.remove('active');
+      }
+      
+      if (noRightTouch && rightActive) {
+        rightActive = false;
+        rightJoystick.classList.remove('active');
+      }
+    });
+  }
+  
   updatePlayerPosition() {
     if (this.controls.isLocked === true) {
       const time = performance.now();
@@ -237,9 +382,21 @@ export class Game {
   }
   
   animate() {
-    requestAnimationFrame(() => this.animate());
+    // For mobile, limit to 30 FPS to save battery
+    if (this.isMobile && this.lastFrameTime) {
+      const now = performance.now();
+      const elapsed = now - this.lastFrameTime;
+      if (elapsed < 33) { // ~30 FPS
+        requestAnimationFrame(() => this.animate());
+        return;
+      }
+      this.lastFrameTime = now;
+    } else {
+      this.lastFrameTime = performance.now();
+    }
     
     this.updatePlayerPosition();
     this.renderer.render(this.scene, this.camera);
+    requestAnimationFrame(() => this.animate());
   }
 }
